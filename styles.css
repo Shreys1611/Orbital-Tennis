@@ -1,0 +1,152 @@
+ /* --- CSS START --- */
+ :root {
+     --bg-color: #020617;
+     --text-color: #f8fafc;
+     --accent: #06b6d4;
+     --danger: #ef4444;
+     --success: #22c55e;
+     --panel-bg: rgba(15, 23, 42, 0.95);
+ }
+
+ body {
+     margin: 0;
+     overflow: hidden;
+     background-color: var(--bg-color);
+     color: var(--text-color);
+     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     height: 100vh;
+     user-select: none;
+ }
+
+ #game-container {
+     position: relative;
+     width: 700px;
+     height: 700px;
+     border-radius: 50%;
+     box-shadow: 0 0 80px rgba(6, 182, 212, 0.1);
+ }
+
+ canvas {
+     display: block;
+     border-radius: 50%;
+ }
+
+ .ui-layer {
+     position: absolute;
+     top: 0;
+     left: 0;
+     width: 100%;
+     height: 100%;
+     display: flex;
+     flex-direction: column;
+     justify-content: center;
+     align-items: center;
+     background: var(--panel-bg);
+     backdrop-filter: blur(8px);
+     border-radius: 50%;
+     z-index: 10;
+     transition: opacity 0.4s, transform 0.4s;
+     box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
+ }
+
+ .hidden {
+     opacity: 0;
+     transform: scale(1.1);
+     pointer-events: none;
+ }
+
+ h1 {
+     font-size: 3.5rem;
+     margin: 0 0 0.5rem 0;
+     text-transform: uppercase;
+     letter-spacing: 6px;
+     color: #fff;
+     text-shadow: 0 0 20px var(--accent);
+     text-align: center;
+ }
+
+ .setting-row {
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     width: 320px;
+     margin: 8px 0;
+     background: rgba(255, 255, 255, 0.05);
+     padding: 8px 15px;
+     border-radius: 8px;
+ }
+
+ .label {
+     font-weight: bold;
+     color: #cbd5e1;
+ }
+
+ .value-control {
+     display: flex;
+     align-items: center;
+     gap: 10px;
+ }
+
+ .btn-small {
+     background: #334155;
+     border: 1px solid #475569;
+     color: white;
+     width: 30px;
+     height: 30px;
+     border-radius: 50%;
+     cursor: pointer;
+     font-weight: bold;
+ }
+
+ .btn-small:hover {
+     background: #475569;
+ }
+
+ select {
+     background: #1e293b;
+     color: white;
+     border: 1px solid #475569;
+     padding: 5px;
+     border-radius: 4px;
+ }
+
+ .btn-main {
+     background: linear-gradient(135deg, #0ea5e9, #2563eb);
+     border: none;
+     padding: 15px 40px;
+     color: white;
+     font-size: 1.5rem;
+     border-radius: 50px;
+     cursor: pointer;
+     margin-top: 20px;
+     font-weight: 800;
+     letter-spacing: 2px;
+     box-shadow: 0 0 20px rgba(14, 165, 233, 0.5);
+     transition: transform 0.2s;
+     text-transform: uppercase;
+ }
+
+ .btn-main:hover {
+     transform: scale(1.05);
+ }
+
+ .tutorial {
+     font-size: 0.9rem;
+     color: #94a3b8;
+     margin-top: 15px;
+     text-align: center;
+     line-height: 1.5;
+     max-width: 400px;
+ }
+
+ #winner-text {
+     font-size: 3rem;
+     font-weight: 900;
+     margin-bottom: 20px;
+     text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+ }
+
+ /* --- CSS END --- */

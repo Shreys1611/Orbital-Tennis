@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital Tennis: Final Cut</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Main Menu -->
+        <div id="menu-screen" class="ui-layer">
+            <h1>Orbital Tennis</h1>
+
+            <div class="setting-row">
+                <span class="label">Total Players</span>
+                <div class="value-control">
+                    <button class="btn-small" onclick="adjustTotal(-1)">-</button>
+                    <span id="total-display" style="width: 20px; text-align: center;">4</span>
+                    <button class="btn-small" onclick="adjustTotal(1)">+</button>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <span class="label">Humans</span>
+                <div class="value-control">
+                    <button class="btn-small" onclick="adjustHumans(-1)">-</button>
+                    <span id="human-display" style="width: 20px; text-align: center;">1</span>
+                    <button class="btn-small" onclick="adjustHumans(1)">+</button>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <span class="label">Bot Difficulty</span>
+                <select id="bot-difficulty">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                    <option value="impossible">IMPOSSIBLE</option>
+                </select>
+            </div>
+
+            <div class="tutorial">
+                Game moves to <strong>LOBBY</strong> first.<br>
+                Press your <strong>HIT</strong> key to Ready Up.<br>
+                Wait for Countdown.<br>
+            </div>
+
+            <button class="btn-main" onclick="goToLobby()">ENTER LOBBY</button>
+        </div>
+
+        <!-- Game Over -->
+        <div id="game-over-screen" class="ui-layer hidden">
+            <h1 style="color: #ef4444; font-size: 2.5rem; text-shadow: none;">ELIMINATED</h1>
+            <div id="winner-text">Player 1 Wins!</div>
+            <button class="btn-main" onclick="showMenu()">MENU</button>
+            <button class="btn-main"
+                style="background: linear-gradient(135deg, #10b981, #059669); font-size: 1rem; padding: 10px 20px; margin-top: 10px;"
+                onclick="goToLobby()">REMATCH</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
