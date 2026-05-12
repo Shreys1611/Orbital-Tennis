@@ -63,6 +63,18 @@
                 style="background: linear-gradient(135deg, #10b981, #059669); font-size: 1rem; padding: 10px 20px; margin-top: 10px;"
                 onclick="goToLobby()">REMATCH</button>
         </div>
+
+        <!-- Pause Button -->
+        <button id="pause-btn" class="hidden" onclick="togglePause()">⏸</button>
+
+        <!-- Pause Menu Overlay -->
+        <div id="pause-screen" class="ui-layer hidden">
+            <h1 style="color: #facc15;">PAUSED</h1>
+            <button class="btn-main" onclick="togglePause()">RESUME</button>
+            <button class="btn-main" onclick="restartGame()">RESTART LEVEL</button>
+            <button class="btn-main" style="background: linear-gradient(135deg, #ef4444, #b91c1c);"
+                onclick="showMenu()">MAIN MENU</button>
+        </div>
     </div>
 
     <script src="script.js"></script>

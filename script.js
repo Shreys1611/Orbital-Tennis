@@ -110,7 +110,8 @@ const STATE = {
     LOBBY: 1,
     COUNTDOWN: 2,
     PLAYING: 3,
-    GAMEOVER: 4
+    GAMEOVER: 4,
+    PAUSED: 5
 };
 
 let game = {
@@ -557,6 +558,8 @@ function update() {
                 // mark start time for game duration timer
                 game.startTime = Date.now();
                 game.conditionsShown = false; // reset conditions overlay flag
+                // SHOW PAUSE BUTTON
+                document.getElementById('pause-btn').classList.remove('hidden');
             } else {
                 game.countdownTimer = 60;
                 AudioEngine.sfxBlip();
@@ -723,7 +726,7 @@ function draw() {
     game.players.forEach(p => p.draw(ctx, game.phase === STATE.LOBBY));
 
     // Draw Ball
-    if (game.phase === STATE.PLAYING || game.phase === STATE.COUNTDOWN) {
+    if (game.phase === STATE.PLAYING || game.phase === STATE.COUNTDOWN || game.phase === STATE.PAUSED) {
         if (game.ball.trail && game.ball.trail.length > 1) {
             ctx.beginPath();
             game.ball.trail.forEach((ang, i) => {
@@ -783,7 +786,7 @@ function draw() {
     ctx.restore();
 
     // Game Timer - top center
-    if (game.phase === STATE.PLAYING && game.startTime) {
+    if ((game.phase === STATE.PLAYING || game.phase === STATE.PAUSED) && game.startTime) {
         const elapsedMs = Date.now() - game.startTime;
         const seconds = Math.floor(elapsedMs / 1000) % 60;
         const minutes = Math.floor(elapsedMs / 60000);
@@ -915,6 +918,7 @@ function goToLobby() {
 }
 
 function endGame(winner) {
+    document.getElementById('pause-btn').classList.add('hidden');
     game.phase = STATE.GAMEOVER;
     AudioEngine.sfxWin();
 
@@ -938,6 +942,32 @@ function showMenu() {
     uiGameOver.classList.add('hidden');
     uiMenu.classList.remove('hidden');
     ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    document.getElementById('pause-btn').classList.add('hidden');
+    document.getElementById('pause-screen').classList.add('hidden'); // Just in case
+}
+
+function togglePause() {
+    if (game.phase === STATE.PLAYING) {
+        game.phase = STATE.PAUSED;
+        game.pauseStartTime = Date.now(); // Record when we paused to fix the timer later
+        document.getElementById('pause-screen').classList.remove('hidden');
+        document.getElementById('pause-btn').classList.add('hidden');
+    } else if (game.phase === STATE.PAUSED) {
+        game.phase = STATE.PLAYING;
+        // Shift the game start time forward by the amount of time we spent paused
+        game.startTime += (Date.now() - game.pauseStartTime);
+        if (game.lastSpeedBoostTime) game.lastSpeedBoostTime += (Date.now() - game.pauseStartTime);
+
+        document.getElementById('pause-screen').classList.add('hidden');
+        document.getElementById('pause-btn').classList.remove('hidden');
+    }
+}
+
+function restartGame() {
+    document.getElementById('pause-screen').classList.add('hidden');
+    // Hide the pause button until countdown finishes again
+    document.getElementById('pause-btn').classList.add('hidden');
+    goToLobby(); // Sends them right back to the lobby with current settings
 }
 
 updateUIDisplay();

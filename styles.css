@@ -149,4 +149,29 @@
      text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
  }
 
+ #pause-btn {
+     position: absolute;
+     top: 20px;
+     right: 20px;
+     width: 45px;
+     height: 45px;
+     border-radius: 50%;
+     background: rgba(15, 23, 42, 0.8);
+     border: 2px solid #475569;
+     color: white;
+     font-size: 1.2rem;
+     cursor: pointer;
+     z-index: 5;
+     transition: all 0.2s;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+ }
+
+ #pause-btn:hover {
+     background: #334155;
+     transform: scale(1.1);
+     border-color: #06b6d4;
+ }
+
  /* --- CSS END --- */
