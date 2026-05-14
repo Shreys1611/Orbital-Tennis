@@ -257,15 +257,15 @@ class Player {
 
         // Execute Actions
         if (this.isBot) {
-            // Bots: if bot decided to duck, give them a short hold period so they
-            // don't unduck immediately while the ball is still passing.
-            if (wantDuck && this.swingTimer === 0) {
+            // Bots: give them a short hold period so they don't unduck immediately.
+            // MUST not be on cooldown to dodge (vulnerability window).
+            if (wantDuck && this.cooldown === 0) {
                 this.duckTimer = Math.max(this.duckTimer, DUCK_HOLD);
             }
             this.isDucking = (this.duckTimer > 0);
         } else {
-            // Humans: duck while the key is held and swingTimer is not active
-            if (wantDuck && this.swingTimer === 0) this.isDucking = true; else this.isDucking = false;
+            // Humans: duck while the key is held and cooldown is not active
+            if (wantDuck && this.cooldown === 0) this.isDucking = true; else this.isDucking = false;
         }
 
         if (wantHit && this.cooldown === 0 && !this.isDucking) {
@@ -310,22 +310,19 @@ class Player {
         perceivedFrames += (Math.random() - 0.5) * 2;
 
         // --- DUCK LOGIC ---
-        // Panic duck if we just swung (on cooldown) and impact is very soon.
-        // Reduce panic-duck frequency for non-impossible difficulties so bots don't
-        // overuse panic ducks as the game progresses.
-        if (this.cooldown > 0 && framesToImpact < 12) {
-            const panicMultiplier = (game.difficulty === 'impossible') ? 1.0 : 0.5;
-            const effectiveDuckChance = (this.profile.duckChance || 0) * panicMultiplier;
-            if (Math.random() < effectiveDuckChance) {
-                this.botState.ducking = true;
-                this.actionColor = '#facc15';
-                this.actionTimer = 5;
-            }
+        // If the bot is on cooldown from a swing, it is completely vulnerable.
+        // It cannot hit or dodge. Return immediately.
+        if (this.cooldown > 0) {
+            return result;
         }
 
         // Strategic duck for very fast balls (except impossible difficulty)
         if (!this.botState.ducking && game.difficulty !== 'impossible' && Math.abs(ball.speed) > 0.14 && framesToImpact < 20) {
-            if (Math.random() < 0.02) this.botState.ducking = true;
+            if (Math.random() < 0.02) {
+                this.botState.ducking = true;
+                this.actionColor = '#facc15';
+                this.actionTimer = 5;
+            }
         }
 
         if (this.botState.ducking) {
