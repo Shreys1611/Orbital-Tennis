@@ -322,6 +322,7 @@ class Player {
                 this.botState.ducking = true;
                 this.actionColor = '#facc15';
                 this.actionTimer = 5;
+                spawnParticles(this.angle, null, 0, false, "💦");
             }
         }
 
@@ -507,16 +508,32 @@ class Player {
 
 // --- CORE FUNCTIONS ---
 
-function spawnParticles(angle, color, count, explosive = false) {
+function spawnParticles(angle, color, count, explosive = false, emoteText = null) {
     const cx = CANVAS_SIZE / 2 + Math.cos(angle) * BASE_RADIUS;
     const cy = CANVAS_SIZE / 2 + Math.sin(angle) * BASE_RADIUS;
+
+    // If an emote is passed, just spawn one text particle floating upwards
+    if (emoteText) {
+        game.particles.push({
+            x: cx, y: cy,
+            vx: 0,
+            vy: -1.5, // Float straight up
+            life: 1.5, // Lives a bit longer
+            color: '#fff',
+            text: emoteText
+        });
+        return;
+    }
+
+    // Standard colored circle particles
     for (let i = 0; i < count; i++) {
         game.particles.push({
             x: cx, y: cy,
             vx: (Math.random() - 0.5) * (explosive ? 15 : 5),
             vy: (Math.random() - 0.5) * (explosive ? 15 : 5),
             life: 1.0,
-            color: color
+            color: color,
+            text: null
         });
     }
 }
@@ -678,6 +695,9 @@ function update() {
                 game.flash = 0.3;
                 AudioEngine.sfxHit();
                 spawnParticles(p.angle, p.color, 15);
+
+                // Add Hit Emote for Bots
+                if (p.isBot) spawnParticles(p.angle, null, 0, false, "🔥");
             } else {
                 // DEATH
                 p.alive = false;
@@ -685,6 +705,12 @@ function update() {
                 game.flash = 0.8;
                 AudioEngine.sfxDie();
                 spawnParticles(p.angle, '#fff', 40, true);
+
+                // Add Death Emote for Bots
+                if (p.isBot) {
+                    const deathIcon = Math.random() > 0.5 ? "💀" : "❓";
+                    spawnParticles(p.angle, null, 0, false, deathIcon);
+                }
             }
         }
     });
@@ -742,10 +768,23 @@ function draw() {
         ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
     }
 
-    // Particles
+    // Particles & Emotes
     game.particles.forEach(p => {
-        ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = p.life > 1 ? 1 : p.life; // Handle longer life for emotes
+
+        if (p.text) {
+            // Draw Emoji/Text
+            ctx.font = "24px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(p.text, p.x, p.y);
+        } else {
+            // Draw standard circle particle
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
     });
     ctx.globalAlpha = 1.0;
 
