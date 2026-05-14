@@ -131,6 +131,7 @@ let game = {
 };
 
 let keys = {};
+let animationId = null;
 
 // --- SETUP ---
 canvas.width = CANVAS_SIZE;
@@ -850,7 +851,7 @@ function loop() {
     if (game.phase !== STATE.MENU) {
         update();
         draw();
-        requestAnimationFrame(loop);
+        animationId = requestAnimationFrame(loop);
     }
 }
 
@@ -913,6 +914,10 @@ function goToLobby() {
         color: '#fff',
         trail: []
     };
+
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+    }
 
     loop();
 }
