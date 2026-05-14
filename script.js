@@ -497,7 +497,7 @@ class Player {
             ctx.shadowColor = '#fff';
             ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.arc(0, -20, 22, Math.PI - (progress * Math.PI), 2 * Math.PI - (progress * Math.PI));
+            ctx.arc(0, 0, 22, Math.PI - (progress * Math.PI), 2 * Math.PI - (progress * Math.PI)); // Swing arc from 180° to 360° and offset
             ctx.stroke();
         }
 
