@@ -517,7 +517,7 @@ function spawnParticles(angle, color, count, explosive = false, emoteText = null
         game.particles.push({
             x: cx, y: cy,
             vx: 0,
-            vy: -1.5, // Float straight up
+            vy: -0.8, // Float straight up
             life: 1.5, // Lives a bit longer
             color: '#fff',
             text: emoteText
@@ -683,21 +683,35 @@ function update() {
                     p.stats.hits++;
                     p.hitThisApproach = true;
                 }
-                game.ball.angle -= game.ball.speed * 2;
-                game.ball.speed = -game.ball.speed * SPEED_INC;
+                // Check if the hit was perfectly timed in the center of the swing (swingTimer is between 6 and 9)
+                const isPerfect = Math.abs(p.swingTimer - (SWING_DURATION / 2)) <= 1.5;
 
-                if (Math.abs(game.ball.speed) > MAX_SPEED) {
-                    game.ball.speed = MAX_SPEED * Math.sign(game.ball.speed);
+                game.ball.angle -= game.ball.speed * 2; // Eject from player
+
+                if (isPerfect) {
+                    // PERFECT SMASH: Reverse direction and apply a massive speed multiplier
+                    game.ball.speed = -Math.sign(game.ball.speed) * Math.min(Math.abs(game.ball.speed) * 1.4, MAX_SPEED * 1.2);
+                    game.ball.color = '#facc15'; // Turn ball blazing Gold
+                    game.shake = 20;
+                    game.flash = 0.6;
+                    AudioEngine.sfxHit();
+                    AudioEngine.playTone(150, 'sawtooth', 0.3, 0.2); // Extra bass boom!
+                    spawnParticles(p.angle, '#facc15', 30, true); // Golden sparks
+
+                    // Spawn the Fire Emoji for both Humans and Bots!
+                    spawnParticles(p.angle, null, 0, false, "🔥");
+                } else {
+                    // NORMAL HIT
+                    game.ball.speed = -game.ball.speed * SPEED_INC;
+                    if (Math.abs(game.ball.speed) > MAX_SPEED) {
+                        game.ball.speed = MAX_SPEED * Math.sign(game.ball.speed);
+                    }
+                    game.ball.color = p.color;
+                    game.shake = 8;
+                    game.flash = 0.3;
+                    AudioEngine.sfxHit();
+                    spawnParticles(p.angle, p.color, 15);
                 }
-
-                game.ball.color = p.color;
-                game.shake = 8;
-                game.flash = 0.3;
-                AudioEngine.sfxHit();
-                spawnParticles(p.angle, p.color, 15);
-
-                // Add Hit Emote for Bots
-                if (p.isBot) spawnParticles(p.angle, null, 0, false, "🔥");
             } else {
                 // DEATH
                 p.alive = false;
@@ -717,7 +731,7 @@ function update() {
 
     // Particle Update
     game.particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+        p.x += p.vx; p.y += p.vy; p.life -= p.text ? 0.015 : 0.04;
     });
     game.particles = game.particles.filter(p => p.life > 0);
 }
