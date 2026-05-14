@@ -891,19 +891,10 @@ function goToLobby() {
         game.players.push(new Player(i, slice * i, isBot));
     }
 
-    let safeAngle = 0;
-    let attempts = 0;
-    let isSafe = false;
-
-    while (!isSafe && attempts < 50) {
-        safeAngle = Math.random() * Math.PI * 2;
-        isSafe = true;
-        for (let p of game.players) {
-            let diff = Math.abs((safeAngle - p.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI);
-            if (diff < 0.5) { isSafe = false; break; }
-        }
-        attempts++;
-    }
+    // Calculate the exact midpoint between two random players for a perfectly fair spawn
+    const randomGapIndex = Math.floor(Math.random() * game.totalPlayers);
+    // Spawn exactly halfway between the chosen player and the next player
+    const safeAngle = (slice * randomGapIndex) + (slice / 2);
 
     game.ball = {
         angle: safeAngle,
