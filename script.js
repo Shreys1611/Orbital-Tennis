@@ -63,7 +63,7 @@ const SPEED_BOOST_INTERVAL_MS = 20000; // 20 seconds
 const SPEED_BOOST_MULT = 1.1; // small incremental boost
 // Game end rules
 const MAX_GAME_DURATION_MS = 10 * 60 * 1000; // 10 minutes
-const DUCK_LIMIT = 2000; // ducks needed to eliminate a player
+const DUCK_LIMIT = 50; // ducks needed to eliminate a player
 const SWING_DURATION = 15;
 const COOLDOWN = 30;
 // How long a bot will stay ducked (in frames) after choosing to duck
@@ -123,11 +123,12 @@ let game = {
     ball: {},
     particles: [],
     stars: [],
+    killfeed: [],
     shake: 0,
     flash: 0,
     countdown: 3,
-    countdownTimer: 0
-    , tick: 0
+    countdownTimer: 0,
+    tick: 0
 };
 
 let keys = {};
@@ -198,6 +199,7 @@ class Player {
         };
         // Stats
         this.stats = { hits: 0, ducks: 0 };
+        this.points = 100; // Everyone starts with 100 points
         // last-counted tick to avoid double-counting within overlapping frames
         this.lastHitTick = -1;
         this.lastDuckTick = -1;
@@ -456,12 +458,16 @@ class Player {
         if (!inLobby) {
             ctx.save();
             ctx.font = "10px monospace";
-            ctx.fillStyle = "#cbd5e1";
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
             const hitsG = this.stats ? this.stats.hits : 0;
             const ducksG = this.stats ? this.stats.ducks : 0;
             // draw slightly above the player (before rotating the player body)
+            // Draw points above the hits/ducks
+            ctx.fillStyle = "#facc15"; // Gold color for points
+            ctx.fillText(`PTS: ${this.points}`, 0, -40);
+            // Existing hits/ducks line
+            ctx.fillStyle = "#cbd5e1";
             ctx.fillText(`H:${hitsG} D:${ducksG}`, 0, -28);
             ctx.restore();
         }
@@ -657,9 +663,10 @@ function update() {
 
         if (Math.abs(diff) < 0.15) { // Hitbox
             if (p.isDucking) {
-                // Dodge successful, count duck once per approach and do nothing
+                // Dodge
                 if (p.stats && !p.duckedThisApproach) {
                     p.stats.ducks++;
+                    p.points -= 25; // Dodge penalty
                     p.duckedThisApproach = true;
                     // Eliminate player if they accumulated too many ducks
                     if (p.stats.ducks >= DUCK_LIMIT) {
@@ -668,6 +675,7 @@ function update() {
                         game.flash = 0.9;
                         AudioEngine.sfxDie();
                         spawnParticles(p.angle, '#fff', 60, true);
+                        showKillfeedMessage(`${p.isBot ? 'Bot' : 'Player'} ${p.id + 1} was eliminated (Duck Limit Reached)`);
                         // If this elimination left one or zero survivors, end the game
                         const survivorsNow = game.players.filter(pl => pl.alive);
                         if (survivorsNow.length <= 1) {
@@ -681,6 +689,7 @@ function update() {
                 // Count hit once per approach
                 if (p.stats && !p.hitThisApproach) {
                     p.stats.hits++;
+                    p.points += 25; // Base hit reward
                     p.hitThisApproach = true;
                 }
                 // Check if the hit was perfectly timed in the center of the swing (swingTimer is between 6 and 9)
@@ -689,6 +698,11 @@ function update() {
                 game.ball.angle -= game.ball.speed * 2; // Eject from player
 
                 if (isPerfect) {
+                    // PERFECT STREAK MULTIPLIER
+                    game.ball.perfectStreak++;
+                    const streakBonus = 50 * game.ball.perfectStreak;
+                    p.points += streakBonus;
+
                     // PERFECT SMASH: Reverse direction and apply a massive speed multiplier
                     game.ball.speed = -Math.sign(game.ball.speed) * Math.min(Math.abs(game.ball.speed) * 1.4, MAX_SPEED * 1.2);
                     game.ball.color = '#facc15'; // Turn ball blazing Gold
@@ -702,6 +716,7 @@ function update() {
                     spawnParticles(p.angle, null, 0, false, "🔥");
                 } else {
                     // NORMAL HIT
+                    game.ball.perfectStreak = 0; // reset perfect streak
                     game.ball.speed = -game.ball.speed * SPEED_INC;
                     if (Math.abs(game.ball.speed) > MAX_SPEED) {
                         game.ball.speed = MAX_SPEED * Math.sign(game.ball.speed);
@@ -712,9 +727,12 @@ function update() {
                     AudioEngine.sfxHit();
                     spawnParticles(p.angle, p.color, 15);
                 }
+                // Tag the ball with this player's ID for kill credit
+                game.ball.lastHitBy = p;
             } else {
                 // DEATH
                 p.alive = false;
+                p.points -= 50; // Death penalty
                 game.shake = 25;
                 game.flash = 0.8;
                 AudioEngine.sfxDie();
@@ -725,6 +743,23 @@ function update() {
                     const deathIcon = Math.random() > 0.5 ? "💀" : "❓";
                     spawnParticles(p.angle, null, 0, false, deathIcon);
                 }
+                // --- KILLFEED GENERATOR ---
+                let deathReason = p.cooldown > 0 ? "swung at ghosts (Early)" : "did absolutely nothing";
+                let victimName = p.isBot ? `Bot ${p.id + 1}` : `Player ${p.id + 1}`;
+                let killerName = game.ball.lastHitBy ? (game.ball.lastHitBy.isBot ? `Bot ${game.ball.lastHitBy.id + 1}` : `Player ${game.ball.lastHitBy.id + 1}`) : "The Void";
+
+                let killMessage = "";
+                if (game.ball.lastHitBy === p) {
+                    killMessage = `🤡 ${victimName} eliminated themselves (Own Goal)!`;
+                } else if (game.ball.lastHitBy) {
+                    killMessage = `⚔️ ${killerName} obliterated ${victimName} (${deathReason})`;
+                    game.ball.lastHitBy.points += 100; // Award the Killer!
+                } else {
+                    killMessage = `💨 ${victimName} died to the starting serve (${deathReason})`;
+                }
+
+                // Push to killfeed (life = 180 frames / 3 seconds)
+                showKillfeedMessage(killMessage);
             }
         }
     });
@@ -734,6 +769,7 @@ function update() {
         p.x += p.vx; p.y += p.vy; p.life -= p.text ? 0.015 : 0.04;
     });
     game.particles = game.particles.filter(p => p.life > 0);
+
 }
 
 function draw() {
@@ -953,8 +989,11 @@ function goToLobby() {
         angle: safeAngle,
         speed: Math.random() > 0.5 ? START_SPEED : -START_SPEED,
         color: '#fff',
-        trail: []
+        trail: [],
+        lastHitBy: null, // Tracks who gets the kill credit
+        perfectStreak: 0 // Tracks back-to-back perfect hits
     };
+    game.killfeed = []; // Initialize the empty killfeed array
 
     if (animationId) {
         cancelAnimationFrame(animationId);
@@ -1014,6 +1053,22 @@ function restartGame() {
     // Hide the pause button until countdown finishes again
     document.getElementById('pause-btn').classList.add('hidden');
     goToLobby(); // Sends them right back to the lobby with current settings
+}
+
+function showKillfeedMessage(text) {
+    const container = document.getElementById('killfeed-ui');
+    if (!container) return;
+
+    const msg = document.createElement('div');
+    msg.className = 'kill-msg';
+    msg.innerText = text;
+    container.appendChild(msg);
+
+    // Fade out and remove after 3 seconds
+    setTimeout(() => {
+        msg.style.opacity = '0';
+        setTimeout(() => msg.remove(), 500);
+    }, 3000);
 }
 
 updateUIDisplay();
