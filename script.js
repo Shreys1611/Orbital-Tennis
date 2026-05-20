@@ -55,7 +55,7 @@ const BASE_RADIUS = 250;
 const START_SPEED = 0.015;
 // Increased max speed so late-game becomes much faster if hits chain
 // Raised further per user request
-const MAX_SPEED = 0.1;
+const MAX_SPEED = 0.11;
 // Reduce speed increment per hit so games last longer; adjust to taste (1.0 = no change)
 const SPEED_INC = 1.015;
 // Periodic speed boost: every SPEED_BOOST_INTERVAL_MS multiply ball speed by SPEED_BOOST_MULT
@@ -761,7 +761,7 @@ function update() {
                 // Dodge
                 if (p.stats && !p.duckedThisApproach) {
                     p.stats.ducks++;
-                    p.points -= 25; // Dodge penalty
+                    p.points += 10; // Dodge penalty
                     p.duckedThisApproach = true;
                     // Eliminate player if they accumulated too many ducks
                     if (p.stats.ducks >= DUCK_LIMIT) {
@@ -1211,6 +1211,42 @@ function reshuffleZones() {
                 end: center + (w / 2),
                 color: isFast ? 'rgba(34, 197, 94, 1.0)' : 'rgba(168, 85, 247, 1.0)'
             });
+        }
+    } else if (game.mode === 'chaos') {
+        // Track the array index so the portals know how to link to each other
+        let currentIndex = 0;
+
+        // 1. Throw in a Flip Zone if we have space
+        if (availableGaps.length > 0) {
+            let gap = availableGaps.pop(); // Take a random gap out of the available pool
+            let center = (slice * gap) + (slice / 2);
+            game.zones.push({ type: 'flip', start: center - (w / 2), end: center + (w / 2), color: 'rgba(239, 68, 68, 1.0)' });
+            currentIndex++;
+        }
+
+        // 2. Throw in a random Speed or Slow zone if we have space
+        if (availableGaps.length > 0) {
+            let gap = availableGaps.pop();
+            let center = (slice * gap) + (slice / 2);
+            let isFast = Math.random() > 0.5;
+            game.zones.push({
+                type: isFast ? 'fast' : 'slow',
+                start: center - (w / 2), end: center + (w / 2),
+                color: isFast ? 'rgba(34, 197, 94, 1.0)' : 'rgba(168, 85, 247, 1.0)'
+            });
+            currentIndex++;
+        }
+
+        // 3. Throw in a Portal Pair if we have at least 2 empty gaps left!
+        if (availableGaps.length >= 2) {
+            let gap1 = availableGaps.pop();
+            let gap2 = availableGaps.pop();
+            let c1 = (slice * gap1) + (slice / 2);
+            let c2 = (slice * gap2) + (slice / 2);
+
+            // The Entrance targets the Exit, which will be the very next item added to the array
+            game.zones.push({ type: 'portalIn', targetIndex: currentIndex + 1, start: c1 - (w / 2), end: c1 + (w / 2), color: 'rgba(249, 115, 22, 1.0)' });
+            game.zones.push({ type: 'portalOut', targetIndex: null, start: c2 - (w / 2), end: c2 + (w / 2), color: 'rgba(56, 189, 248, 1.0)' });
         }
     }
     if (game.ball) game.ball.portalsActive = true;
