@@ -55,7 +55,7 @@ const BASE_RADIUS = 250;
 const START_SPEED = 0.015;
 // Increased max speed so late-game becomes much faster if hits chain
 // Raised further per user request
-const MAX_SPEED = 0.1;
+const MAX_SPEED = 0.17;
 // Reduce speed increment per hit so games last longer; adjust to taste (1.0 = no change)
 const SPEED_INC = 1.04;
 // Periodic speed boost: every SPEED_BOOST_INTERVAL_MS multiply ball speed by SPEED_BOOST_MULT
@@ -342,63 +342,61 @@ class Player {
         }
 
         // --- HIT LOGIC ---
-        // Start swing early enough so swingTimer > 0 when impact occurs.
-        // Use SWING_DURATION as the window in which the bot will attempt a hit,
-        // and apply a probability based on difficulty and perceived timing.
-        // Widen action window so bots can pick (hit vs duck) earlier rather than only
-        // when the ball is right on top of them.
-        if (perceivedFrames <= SWING_DURATION * 1.4) {
-            // Determine effective hit probability (timing + difficulty + speed)
+        // The game registers a hit when the ball is 0.15 radians away (the edge of the player).
+        // We calculate exactly how many frames until the ball touches that outer edge.
+        const framesToHitbox = perceivedFrames - (0.15 / Math.abs(ball.speed));
+
+        // --- GOD MODE: IMPOSSIBLE BOTS ---
+        if (this.profile.hitChance >= 0.95) {
+            // To hit a Perfect Smash, they must swing EXACTLY 7.5 frames before the ball touches the hitbox
+            const perfectSwingLead = SWING_DURATION / 2;
+
+            if (framesToHitbox <= perfectSwingLead + 0.5) {
+                // 10% chance to fake you out with a duck, 90% chance to blast a Perfect hit
+                if (Math.random() < 0.10) {
+                    result.duck = true; this.actionColor = '#facc15';
+                } else {
+                    result.hit = true; this.actionColor = '#ffffff';
+                }
+                this.actionTimer = 5;
+                return result;
+            }
+            return result; // Hold the pose... wait for the perfect pixel...
+        }
+
+        // --- NORMAL BOTS (Easy, Medium, Hard) ---
+        // They start deciding to swing/duck when the ball approaches the hitbox
+        if (framesToHitbox <= SWING_DURATION) {
             const baseHit = this.profile.hitChance || 0.5;
+
+            // Proximity calculates how close they are to the perfect 7.5 frame lead
             const swingCenter = SWING_DURATION / 2;
-            const proximity = Math.max(0, 1 - (Math.abs(perceivedFrames - swingCenter) / swingCenter));
+            const proximity = Math.max(0, 1 - (Math.abs(framesToHitbox - swingCenter) / swingCenter));
+
             let finalHitProb = baseHit * (0.5 + 0.5 * proximity);
             const speedFactor = Math.max(0.45, 1 - (Math.abs(ball.speed) / MAX_SPEED) * 0.6);
             finalHitProb *= speedFactor;
             finalHitProb = Math.min(Math.max(finalHitProb, 0), 0.99);
 
-            // Determine duck probability (use profile.duckChance as base)
             let duckProb = this.profile.duckChance || 0.2;
-            // Slightly increase duck probability if ball is very fast
             if (Math.abs(ball.speed) > 0.14) duckProb = Math.min(0.99, duckProb + 0.05);
 
-            // For impossible bots, act almost always (either hit or duck)
-            if (this.profile.hitChance >= 0.95 && duckProb >= 0.95) {
-                // Randomly choose hit or duck but almost certainly do one
-                if (Math.random() < 0.5) {
-                    result.hit = true;
-                    this.actionColor = '#ffffff';
-                } else {
-                    result.duck = true;
-                    this.actionColor = '#facc15';
-                }
-                this.actionTimer = 5;
-                return result;
-            }
-
-            // Normalize and randomly choose between duck and hit to add asymmetry
             const total = finalHitProb + duckProb;
             if (total <= 0) {
-                // fallback: try to hit if nothing else
                 if (Math.random() < finalHitProb) {
                     result.hit = true; this.actionColor = '#ffffff'; this.actionTimer = 5;
                 }
             } else {
                 const pick = Math.random() * total;
                 if (pick < duckProb) {
-                    result.duck = true;
-                    this.actionColor = '#facc15';
-                    this.actionTimer = 5;
+                    result.duck = true; this.actionColor = '#facc15'; this.actionTimer = 5;
                 } else {
-                    result.hit = true;
-                    this.actionColor = '#ffffff';
-                    this.actionTimer = 5;
+                    result.hit = true; this.actionColor = '#ffffff'; this.actionTimer = 5;
                 }
             }
         }
 
-        // Safety: ensure we never return both actions true (mutual exclusivity)
-        // (This is defensive; main code should already avoid this.)
+        // Safety override
         if (result.hit && result.duck) {
             if (Math.random() < 0.5) result.duck = false; else result.hit = false;
         }
@@ -660,7 +658,7 @@ function update() {
         game.ball.maxSpeedPlayer = game.ball.lastHitBy ? game.ball.lastHitBy.name : "The Void";
     }
 
-    // --- ZONE LOGIC ---
+    // ZONE LOGIC
     if (game.zones && game.zones.length > 0) {
         let inAnyZone = false;
 
@@ -725,6 +723,7 @@ function update() {
                     // Eliminate player if they accumulated too many ducks
                     if (p.stats.ducks >= DUCK_LIMIT) {
                         p.alive = false;
+                        game.deadPlayers.push(p);
                         game.shake = 25;
                         game.flash = 0.9;
                         AudioEngine.sfxDie();
