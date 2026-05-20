@@ -122,7 +122,9 @@ let game = {
     phase: STATE.MENU,
     totalPlayers: 4,
     humanCount: 1,
-    difficulty: 'medium',
+    difficulty: 'easy',
+    mode: 'standard',
+    zones: [], // For game modes that use zones (e.g., Flip Zone)
     players: [],
     deadPlayers: [],
     ball: {},
@@ -651,6 +653,45 @@ function update() {
     game.ball.angle += game.ball.speed;
     game.ball.angle = (game.ball.angle + Math.PI * 2) % (Math.PI * 2);
 
+    // --- ZONE LOGIC ---
+    if (game.zones && game.zones.length > 0) {
+        let inAnyZone = false;
+
+        game.zones.forEach((z, index) => {
+            // Normalize angles to 0-2PI for safe comparison
+            let bAngle = game.ball.angle;
+            let start = (z.start + Math.PI * 2) % (Math.PI * 2);
+            let end = (z.end + Math.PI * 2) % (Math.PI * 2);
+
+            // Check if ball is between start and end (handles wrapping past 0)
+            let isInside = false;
+            if (start < end) {
+                isInside = (bAngle >= start && bAngle <= end);
+            } else {
+                isInside = (bAngle >= start || bAngle <= end);
+            }
+
+            if (isInside) {
+                inAnyZone = true;
+                // Only trigger the effect ONCE when entering the zone
+                if (game.ball.activeZone !== index) {
+                    game.ball.activeZone = index;
+
+                    // Trigger Zone Effects
+                    if (z.type === 'flip') {
+                        game.ball.speed *= -1; // Reverse direction
+                        AudioEngine.playTone(400, 'square', 0.1, 0.2); // Anomaly Sound
+                        spawnParticles(game.ball.angle, '#ef4444', 20, true); // Red explosion
+                        game.shake = 5; // Slight screen shake
+                    }
+                }
+            }
+        });
+
+        // Clear active zone if the ball has fully exited
+        if (!inAnyZone) game.ball.activeZone = null;
+    }
+
     // Trail
     game.ball.trail.push(game.ball.angle);
     if (game.ball.trail.length > 15) game.ball.trail.shift();
@@ -804,6 +845,17 @@ function draw() {
     // Track Ring
     ctx.beginPath(); ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke();
+    // Draw Zones
+    if (game.zones && game.zones.length > 0) {
+        game.zones.forEach(z => {
+            ctx.beginPath();
+            ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, z.start, z.end);
+            ctx.strokeStyle = z.color;
+            ctx.lineWidth = 12; // Thicker than the track so it stands out
+            ctx.lineCap = 'round';
+            ctx.stroke();
+        });
+    }
 
     // Draw Entities
     game.players.forEach(p => p.draw(ctx, game.phase === STATE.LOBBY));
@@ -975,6 +1027,7 @@ function updateUIDisplay() {
 function goToLobby() {
     AudioEngine.init();
     game.difficulty = document.getElementById('bot-difficulty').value;
+    game.mode = document.getElementById('game-mode').value;
     uiMenu.classList.add('hidden');
     uiGameOver.classList.add('hidden');
 
@@ -1015,9 +1068,40 @@ function goToLobby() {
         color: '#fff',
         trail: [],
         lastHitBy: null, // Tracks who gets the kill credit
-        perfectStreak: 0 // Tracks back-to-back perfect hits
+        perfectStreak: 0, // Tracks back-to-back perfect hits
+        activeZone: null // Tracks if the ball is currently inside a zone to prevent infinite flipping
     };
     game.killfeed = []; // Initialize the empty killfeed array
+
+    // --- SETUP ZONES ---
+    game.zones = [];
+    if (game.mode === 'flip') {
+        // 1. Pick a random gap between players for the zone
+        let zoneGapIndex = Math.floor(Math.random() * game.totalPlayers);
+
+        // 2. If there are 3+ players, force the zone to spawn in a DIFFERENT gap than the starting ball
+        if (game.totalPlayers > 2) {
+            while (zoneGapIndex === randomGapIndex) {
+                zoneGapIndex = Math.floor(Math.random() * game.totalPlayers);
+            }
+        }
+
+        // 3. Find the exact mathematical center of this safe gap
+        const gapCenter = (slice * zoneGapIndex) + (slice / 2);
+
+        // 4. Randomize the width (size) of the zone safely. 
+        // We subtract 0.5 from the total slice width to leave a safe buffer so it never clips a player's hitbox.
+        const maxZoneWidth = Math.max(0.2, slice - 0.5);
+        const minZoneWidth = 0.2;
+        const randomWidth = Math.random() * (maxZoneWidth - minZoneWidth) + minZoneWidth;
+
+        game.zones.push({
+            type: 'flip',
+            start: gapCenter - (randomWidth / 2),
+            end: gapCenter + (randomWidth / 2),
+            color: 'rgba(239, 68, 68, 0.5)' // Red
+        });
+    }
 
     if (animationId) {
         cancelAnimationFrame(animationId);
