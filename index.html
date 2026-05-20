@@ -73,10 +73,37 @@
         <!-- Game Over -->
         <div id="game-over-screen" class="ui-layer hidden">
             <div id="winner-text">Player 1 Wins!</div>
-            <button class="btn-main" onclick="showMenu()">MENU</button>
-            <button class="btn-main"
-                style="background: linear-gradient(135deg, #10b981, #059669); font-size: 1rem; padding: 10px 20px; margin-top: 10px;"
-                onclick="goToLobby()">REMATCH</button>
+
+            <div id="leaderboard-container"
+                style="display: none; background: rgba(15, 23, 42, 0.9); border: 2px solid #334155; border-radius: 10px; padding: 20px; margin: 15px 0; width: 85%; max-width: 500px; max-height: 50vh; overflow-y: auto;">
+                <table
+                    style="width: 100%; color: white; border-collapse: collapse; text-align: center; font-size: 14px;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #06b6d4; color: #94a3b8;">
+                            <th style="padding: 8px;">#</th>
+                            <th style="padding: 8px;">NAME</th>
+                            <th style="padding: 8px;">PTS</th>
+                            <th style="padding: 8px;">KILLS</th>
+                            <th style="padding: 8px;">PERFECTS</th>
+                            <th style="padding: 8px;">DODGES</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn-main"
+                    style="background: linear-gradient(135deg, #0ea5e9, #2563eb); font-size: 1rem; padding: 10px 20px; margin-top: 10px;"
+                    onclick="showMenu()">MENU</button>
+                <button class="btn-main"
+                    style="background: linear-gradient(135deg, #a855f7, #7e22ce); font-size: 1rem; padding: 10px 20px; margin-top: 10px;"
+                    onclick="toggleStats()">DETAILS</button>
+                <button class="btn-main"
+                    style="background: linear-gradient(135deg, #10b981, #059669); font-size: 1rem; padding: 10px 20px; margin-top: 10px;"
+                    onclick="goToLobby()">REMATCH</button>
+            </div>
         </div>
 
         <!-- Pause Button -->

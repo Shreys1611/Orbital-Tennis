@@ -1039,10 +1039,43 @@ function endGame(winner) {
         text.style.color = "#fff";
     }
 
+    // --- BUILD LEADERBOARD ---
+    // deadPlayers logs from first death to last. We reverse it so the last to die is at the top.
+    let leaderboard = [...game.deadPlayers].reverse();
+    if (winner) leaderboard.unshift(winner); // Put the winner in 1st place!
+
+    const tbody = document.getElementById('leaderboard-body');
+    tbody.innerHTML = ''; // Clear previous stats
+
+    leaderboard.forEach((p, index) => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = "1px solid #1e293b";
+        row.innerHTML = `
+            <td style="padding: 8px; color: ${p.color}; font-weight: bold;">${index + 1}</td>
+            <td style="padding: 8px; color: ${p.color};">${p.name}</td>
+            <td style="padding: 8px; color: #facc15; font-weight: bold;">${p.points}</td>
+            <td style="padding: 8px;">${p.stats.kills}</td>
+            <td style="padding: 8px;">${p.stats.perfects}</td>
+            <td style="padding: 8px;">${p.stats.ducks}</td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    // Ensure the leaderboard is hidden when the screen first appears
+    document.getElementById('leaderboard-container').style.display = 'none';
+
     setTimeout(() => {
         uiGameOver.classList.remove('hidden');
-        game.phase = STATE.MENU;
     }, 1000);
+}
+
+function toggleStats() {
+    const container = document.getElementById('leaderboard-container');
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
 }
 
 function showMenu() {
