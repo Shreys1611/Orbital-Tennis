@@ -55,7 +55,7 @@ const BASE_RADIUS = 250;
 const START_SPEED = 0.015;
 // Increased max speed so late-game becomes much faster if hits chain
 // Raised further per user request
-const MAX_SPEED = 3.0;
+const MAX_SPEED = 0.1;
 // Reduce speed increment per hit so games last longer; adjust to taste (1.0 = no change)
 const SPEED_INC = 1.04;
 // Periodic speed boost: every SPEED_BOOST_INTERVAL_MS multiply ball speed by SPEED_BOOST_MULT
@@ -653,6 +653,13 @@ function update() {
     game.ball.angle += game.ball.speed;
     game.ball.angle = (game.ball.angle + Math.PI * 2) % (Math.PI * 2);
 
+    // Track Peak Speed & Player
+    if (Math.abs(game.ball.speed) > game.ball.maxSpeed) {
+        game.ball.maxSpeed = Math.abs(game.ball.speed);
+        // Grab the name of the last person to hit it, or fallback if none
+        game.ball.maxSpeedPlayer = game.ball.lastHitBy ? game.ball.lastHitBy.name : "The Void";
+    }
+
     // --- ZONE LOGIC ---
     if (game.zones && game.zones.length > 0) {
         let inAnyZone = false;
@@ -722,7 +729,9 @@ function update() {
                         game.flash = 0.9;
                         AudioEngine.sfxDie();
                         spawnParticles(p.angle, '#fff', 60, true);
-                        showKillfeedMessage(`${p.name} was eliminated (Duck Limit Reached)`);
+                        const duckMsgs = ["wore out their knees", "spammed duck too hard", "quacked under pressure"];
+                        const randomDuck = duckMsgs[Math.floor(Math.random() * duckMsgs.length)];
+                        showKillfeedMessage(`🦆 <span style="color:${p.color}">${p.name}</span> ${randomDuck}!`);
                         // If this elimination left one or zero survivors, end the game
                         const survivorsNow = game.players.filter(pl => pl.alive);
                         if (survivorsNow.length <= 1) {
@@ -793,19 +802,27 @@ function update() {
                     spawnParticles(p.angle, null, 0, false, deathIcon);
                 }
                 // --- KILLFEED GENERATOR ---
-                let deathReason = p.cooldown > 0 ? "swung at ghosts (Early)" : "did absolutely nothing";
-                let victimName = p.name;
-                let killerName = game.ball.lastHitBy ? game.ball.lastHitBy.name : "The Void";
+                let deathReason = p.cooldown > 0 ? "whiffed the swing" : "fell asleep at the wheel";
+
+                // Colorize the names based on the player's assigned hex color
+                let victimText = `<span style="color:${p.color}">${p.name}</span>`;
+                let killerText = game.ball.lastHitBy ? `<span style="color:${game.ball.lastHitBy.color}">${game.ball.lastHitBy.name}</span>` : "The Void";
 
                 let killMessage = "";
                 if (game.ball.lastHitBy === p) {
-                    killMessage = `🤡 ${victimName} eliminated themselves!`;
+                    killMessage = `🤡 ${victimText} hit the self-destruct button!`;
                 } else if (game.ball.lastHitBy) {
-                    killMessage = `⚔️ ${killerName} obliterated ${victimName} (${deathReason})`;
-                    game.ball.lastHitBy.points += 100; // Award the Killer!
-                    game.ball.lastHitBy.stats.kills++; // <-- LEADERBOARD TRACKING: Award Kill
+                    // Randomize the flavor text!
+                    const killVerbs = ["obliterated", "dismantled", "gapped", "deleted"];
+                    const randomVerb = killVerbs[Math.floor(Math.random() * killVerbs.length)];
+
+                    // The reason is slightly smaller and greyed out to reduce clutter
+                    killMessage = `⚔️ ${killerText} ${randomVerb} ${victimText} <span style="color:#94a3b8; font-size:12px;">(${deathReason})</span>`;
+
+                    game.ball.lastHitBy.points += 100;
+                    game.ball.lastHitBy.stats.kills++;
                 } else {
-                    killMessage = `💨 ${victimName} died to the starting serve (${deathReason})`;
+                    killMessage = `💨 ${victimText} died to the starting serve <span style="color:#94a3b8; font-size:12px;">(${deathReason})</span>`;
                 }
 
                 // Push to HTML killfeed
@@ -1069,7 +1086,9 @@ function goToLobby() {
         trail: [],
         lastHitBy: null, // Tracks who gets the kill credit
         perfectStreak: 0, // Tracks back-to-back perfect hits
-        activeZone: null // Tracks if the ball is currently inside a zone to prevent infinite flipping
+        activeZone: null, // Tracks if the ball is currently inside a zone to prevent infinite flipping
+        maxSpeed: START_SPEED, //Tracks the peak speed reached for end-game stats
+        maxSpeedPlayer: null //Tracks the record holder
     };
     game.killfeed = []; // Initialize the empty killfeed array
 
@@ -1145,6 +1164,23 @@ function endGame(winner) {
         tbody.appendChild(row);
     });
 
+    // --- POPULATE METRICS CARD ---
+    const speedKmh = Math.round(game.ball.maxSpeed * 4000);
+    document.getElementById('max-speed-display').innerText = `${speedKmh} km/h`;
+    document.getElementById('max-speed-player').innerText = game.ball.maxSpeedPlayer || "None";
+
+    // Calculate how close they got to the game's absolute MAX_SPEED limit (percentage)
+    const speedPercent = Math.min(100, (game.ball.maxSpeed / MAX_SPEED) * 100);
+
+    // Reset bar to 0 first, then animate it up for a cool visual effect
+    const speedBar = document.getElementById('max-speed-bar');
+    speedBar.style.transition = 'none';
+    speedBar.style.width = '0%';
+    setTimeout(() => {
+        speedBar.style.transition = 'width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1)'; // Bouncy easing
+        speedBar.style.width = `${speedPercent}%`;
+    }, 100);
+
     // Ensure the leaderboard is hidden when the screen first appears
     document.getElementById('leaderboard-container').style.display = 'none';
 
@@ -1215,13 +1251,13 @@ function restartGame() {
     goToLobby(); // Sends them right back to the lobby with current settings
 }
 
-function showKillfeedMessage(text) {
+function showKillfeedMessage(htmlText) {
     const container = document.getElementById('killfeed-ui');
     if (!container) return;
 
     const msg = document.createElement('div');
     msg.className = 'kill-msg';
-    msg.innerText = text;
+    msg.innerHTML = htmlText;
     container.appendChild(msg);
 
     // Fade out and remove after 3 seconds
