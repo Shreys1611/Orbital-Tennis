@@ -69,6 +69,17 @@ const COOLDOWN = 30;
 // How long a bot will stay ducked (in frames) after choosing to duck
 const DUCK_HOLD = 30;
 
+// --- BACKGROUND STARS ---
+const bgStars = [];
+for (let i = 0; i < 200; i++) {
+    bgStars.push({
+        x: Math.random() * CANVAS_SIZE,
+        y: Math.random() * CANVAS_SIZE,
+        r: Math.random() * 1.5,
+        alpha: Math.random()
+    });
+}
+
 // CUSTOM NAMES
 const HUMAN_NAMES = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8"];
 const BOT_NAMES = ["Jack", "Charlie", "David", "Sarah", "Emily", "Sophia", "Thomas", "Olivia"];
@@ -800,8 +811,12 @@ function update() {
                     // PERFECT STREAK MULTIPLIER
                     game.ball.perfectStreak++;
                     p.stats.perfects++; // <-- LEADERBOARD TRACKING: Count Perfects
-                    const streakBonus = 50 * game.ball.perfectStreak;
-                    p.points += streakBonus;
+
+                    // Goal: 1st Perfect = 50, 2nd = 100, 3rd = 150
+                    // Since p.points += 25 already happened above, we subtract 25 
+                    // from the target points to ensure the exact total is awarded!
+                    const targetPoints = 50 * game.ball.perfectStreak;
+                    p.points += (targetPoints - 25);
 
                     // PERFECT SMASH: Reverse direction and apply a massive speed multiplier
                     game.ball.speed = -Math.sign(game.ball.speed) * Math.min(Math.abs(game.ball.speed) * 1.15, MAX_SPEED * 1.2);
@@ -812,8 +827,11 @@ function update() {
                     AudioEngine.playTone(150, 'sawtooth', 0.3, 0.2); // Extra bass boom!
                     spawnParticles(p.angle, '#facc15', 30, true); // Golden sparks
 
-                    // Spawn the Fire Emoji for both Humans and Bots!
+                    // Spawn the Fire Emoji AND a floating score indicator!
                     spawnParticles(p.angle, null, 0, false, "🔥");
+
+                    // Offset the text slightly so it doesn't overlap the emoji perfectly
+                    spawnParticles(p.angle - 0.15, null, 0, false, `+${targetPoints}`);
                 } else {
                     // NORMAL HIT
                     game.ball.perfectStreak = 0; // reset perfect streak
@@ -883,28 +901,47 @@ function update() {
 }
 
 function draw() {
-    ctx.fillStyle = '#020617';
+    // 1. Base Space Background
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-    // Dynamic Stars
+    // 2. ALWAYS save the context here so we can cleanly revert the camera later!
     ctx.save();
-    ctx.translate(CANVAS_SIZE / 2, CANVAS_SIZE / 2);
-    ctx.rotate(Date.now() * 0.0002);
-    game.stars.forEach(s => {
+
+    // Apply Screen Shake
+    if (game.shake > 0) {
+        const dx = (Math.random() - 0.5) * game.shake;
+        const dy = (Math.random() - 0.5) * game.shake;
+        ctx.translate(dx, dy);
+    }
+
+    // INVERSE MODE: THE RELATIVITY CAMERA TRICK
+    if (game.mode === 'inverse' && game.ball) {
+        ctx.translate(CANVAS_SIZE / 2, CANVAS_SIZE / 2);
+        // Rotate the entire universe in reverse to the ball's angle!
+        // -Math.PI / 2 keeps the ball perfectly locked at the top of the screen.
+        ctx.rotate(-game.ball.angle - Math.PI / 2);
+        ctx.translate(-CANVAS_SIZE / 2, -CANVAS_SIZE / 2);
+    }
+
+    // DRAW STARS (Twinkle Effect)
+    bgStars.forEach(s => {
+        s.alpha += (Math.random() - 0.5) * 0.05;
+        if (s.alpha > 1) s.alpha = 1;
+        if (s.alpha < 0.1) s.alpha = 0.1;
+
         ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
-        ctx.beginPath(); ctx.arc(s.x - CANVAS_SIZE / 2, s.y - CANVAS_SIZE / 2, s.size, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
     });
-    ctx.restore();
 
-    // Shake
-    ctx.save();
-    const dx = (Math.random() - 0.5) * game.shake;
-    const dy = (Math.random() - 0.5) * game.shake;
-    ctx.translate(dx, dy);
-
-    // Track Ring
-    ctx.beginPath(); ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke();
+    // DRAW THE CONTINUOUS BASE TRACK
+    ctx.beginPath();
+    ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; // Faint, subtle white line
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
     // Draw Zones with Custom Animations
     if (game.zones && game.zones.length > 0) {
