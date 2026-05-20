@@ -558,6 +558,16 @@ function update() {
     if (game.shake < 0.5) game.shake = 0;
     if (game.flash > 0) game.flash *= 0.85;
 
+    // --- DYNAMIC ZONE SHIFTING ---
+    if (game.phase === STATE.PLAYING && game.mode !== 'standard') {
+        game.zoneTimer++;
+        // 60 frames * 8 seconds = 480 ticks
+        if (game.zoneTimer > 480) {
+            game.zoneTimer = 0;
+            reshuffleZones(); // Delete old zones and spawn new ones safely!
+        }
+    }
+
     // LOBBY LOGIC
     if (game.phase === STATE.LOBBY) {
         let allReady = true;
@@ -688,6 +698,21 @@ function update() {
                         AudioEngine.playTone(400, 'square', 0.1, 0.2); // Anomaly Sound
                         spawnParticles(game.ball.angle, '#ef4444', 20, true); // Red explosion
                         game.shake = 5; // Slight screen shake
+                    } else if (z.type === 'portal') {
+                        // Find the destination portal
+                        let destPortal = game.zones[z.targetIndex];
+                        let destCenter = (destPortal.start + destPortal.end) / 2;
+
+                        // Teleport the ball to the exact center of the exit portal
+                        game.ball.angle = destCenter;
+
+                        // CRITICAL: Lock the ball into the destination portal so it doesn't instantly teleport back!
+                        game.ball.activeZone = z.targetIndex;
+
+                        // Sci-fi teleport effects
+                        AudioEngine.playTone(800, 'sine', 0.1, 0.2);
+                        spawnParticles(game.ball.angle, destPortal.color, 25, true);
+                        game.shake = 8;
                     }
                 }
             }
@@ -861,15 +886,41 @@ function draw() {
     // Track Ring
     ctx.beginPath(); ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke();
-    // Draw Zones
+
+    // Draw Zones with Animations
     if (game.zones && game.zones.length > 0) {
-        game.zones.forEach(z => {
+        const time = Date.now(); // Used to drive the animations
+
+        game.zones.forEach((z, index) => {
+            ctx.save();
             ctx.beginPath();
             ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, z.start, z.end);
+
+            // 1. Draw the base translucent track
             ctx.strokeStyle = z.color;
-            ctx.lineWidth = 12; // Thicker than the track so it stands out
+            ctx.lineWidth = 12;
             ctx.lineCap = 'round';
             ctx.stroke();
+
+            // 2. Draw the Animated Energy Overlays
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineCap = 'butt'; // Crisp edges for dashes
+
+            if (z.type === 'flip') {
+                // Glitchy pulsing effect (opacity goes up and down)
+                ctx.globalAlpha = 0.4 + Math.abs(Math.sin(time / 150)) * 0.6;
+                ctx.setLineDash([Math.random() * 20, Math.random() * 20]);
+                ctx.stroke();
+            } else if (z.type === 'portal') {
+                // Flowing energy indicating teleportation capability
+                ctx.globalAlpha = 0.9;
+                ctx.setLineDash([12, 12]);
+                ctx.lineDashOffset = -(time / 20); // Creates a continuous forward flow
+                ctx.stroke();
+            }
+
+            ctx.restore();
         });
     }
 
@@ -1018,6 +1069,61 @@ function loop() {
     }
 }
 
+function reshuffleZones() {
+    game.zones = [];
+    if (game.mode === 'standard') return;
+
+    const slice = (Math.PI * 2) / game.totalPlayers;
+    let availableGaps = [];
+
+    // Find all gaps that are safely away from the ball
+    for (let i = 0; i < game.totalPlayers; i++) {
+        let gapCenter = (slice * i) + (slice / 2);
+        // Calculate distance from ball to this gap
+        let diff = (game.ball.angle - gapCenter + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+
+        if (Math.abs(diff) > 1.2) { // 1.2 radians is a huge safe buffer
+            availableGaps.push(i);
+        }
+    }
+
+    // Failsafe: If the ball is moving insanely fast and all gaps are "unsafe", just use all gaps
+    if (availableGaps.length === 0) {
+        for (let i = 0; i < game.totalPlayers; i++) availableGaps.push(i);
+    }
+
+    // Shuffle the available gaps randomly
+    availableGaps.sort(() => Math.random() - 0.5);
+
+    if (game.mode === 'flip') {
+        // Spawn 1 or 2 flip zones dynamically
+        let numZones = Math.min(availableGaps.length, Math.random() > 0.5 ? 2 : 1);
+        for (let i = 0; i < numZones; i++) {
+            let gapIndex = availableGaps[i];
+            let center = (slice * gapIndex) + (slice / 2);
+            let w = Math.max(0.2, slice - 0.5);
+            game.zones.push({
+                type: 'flip',
+                start: center - (w / 2), end: center + (w / 2),
+                color: 'rgba(239, 68, 68, 0.5)'
+            });
+        }
+    } else if (game.mode === 'portal' && availableGaps.length >= 2) {
+        // Spawn Orange and Blue Portals
+        let gap1 = availableGaps[0];
+        let gap2 = availableGaps[1];
+        let center1 = (slice * gap1) + (slice / 2);
+        let center2 = (slice * gap2) + (slice / 2);
+        let w = Math.max(0.2, slice - 0.5);
+
+        game.zones.push({ type: 'portal', targetIndex: 1, start: center1 - (w / 2), end: center1 + (w / 2), color: 'rgba(249, 115, 22, 0.6)' }); // Orange
+        game.zones.push({ type: 'portal', targetIndex: 0, start: center2 - (w / 2), end: center2 + (w / 2), color: 'rgba(56, 189, 248, 0.6)' }); // Blue
+    }
+
+    // Flash the screen slightly to indicate map change
+    game.flash = 0.15;
+}
+
 // --- UI HELPERS ---
 
 function adjustTotal(delta) {
@@ -1091,35 +1197,10 @@ function goToLobby() {
     };
     game.killfeed = []; // Initialize the empty killfeed array
 
+    // SETUP ZONES
     // --- SETUP ZONES ---
-    game.zones = [];
-    if (game.mode === 'flip') {
-        // 1. Pick a random gap between players for the zone
-        let zoneGapIndex = Math.floor(Math.random() * game.totalPlayers);
-
-        // 2. If there are 3+ players, force the zone to spawn in a DIFFERENT gap than the starting ball
-        if (game.totalPlayers > 2) {
-            while (zoneGapIndex === randomGapIndex) {
-                zoneGapIndex = Math.floor(Math.random() * game.totalPlayers);
-            }
-        }
-
-        // 3. Find the exact mathematical center of this safe gap
-        const gapCenter = (slice * zoneGapIndex) + (slice / 2);
-
-        // 4. Randomize the width (size) of the zone safely. 
-        // We subtract 0.5 from the total slice width to leave a safe buffer so it never clips a player's hitbox.
-        const maxZoneWidth = Math.max(0.2, slice - 0.5);
-        const minZoneWidth = 0.2;
-        const randomWidth = Math.random() * (maxZoneWidth - minZoneWidth) + minZoneWidth;
-
-        game.zones.push({
-            type: 'flip',
-            start: gapCenter - (randomWidth / 2),
-            end: gapCenter + (randomWidth / 2),
-            color: 'rgba(239, 68, 68, 0.5)' // Red
-        });
-    }
+    game.zoneTimer = 0; // Initialize the shifting timer
+    reshuffleZones(); // Immediately spawn the first setup
 
     if (animationId) {
         cancelAnimationFrame(animationId);
