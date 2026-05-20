@@ -69,6 +69,10 @@ const COOLDOWN = 30;
 // How long a bot will stay ducked (in frames) after choosing to duck
 const DUCK_HOLD = 30;
 
+// CUSTOM NAMES
+const HUMAN_NAMES = ["Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8"];
+const BOT_NAMES = ["Jack", "Charlie", "David", "Sarah", "Emily", "Sophia", "Thomas", "Olivia"];
+
 // Bot Profiles
 const BOT_PROFILES = {
     // errorRange: Random timing offset (frames). Larger = more misses.
@@ -120,6 +124,7 @@ let game = {
     humanCount: 1,
     difficulty: 'medium',
     players: [],
+    deadPlayers: [],
     ball: {},
     particles: [],
     stars: [],
@@ -174,6 +179,7 @@ class Player {
         this.swingTimer = 0;
         this.cooldown = 0;
         this.isDucking = false;
+        this.name = "";
 
         // Lobby Status
         this.ready = isBot;
@@ -198,7 +204,7 @@ class Player {
             ducking: false
         };
         // Stats
-        this.stats = { hits: 0, ducks: 0 };
+        this.stats = { hits: 0, ducks: 0, kills: 0, perfects: 0 };
         this.points = 100; // Everyone starts with 100 points
         // last-counted tick to avoid double-counting within overlapping frames
         this.lastHitTick = -1;
@@ -426,7 +432,7 @@ class Player {
             if (this.isBot) {
                 ctx.font = "bold 12px monospace";
                 ctx.fillStyle = "#64748b";
-                ctx.fillText("BOT", tx, ty);
+                ctx.fillText(this.name.toUpperCase(), tx, ty); // Uses custom bot name
             } else {
                 ctx.font = "bold 14px monospace";
                 ctx.fillStyle = "#fff";
@@ -615,7 +621,7 @@ function update() {
         }
     }
 
-    // --- PLAYING LOGIC ---
+    // PLAYING LOGIC
 
     let survivors = [];
     game.players.forEach(p => {
@@ -675,7 +681,7 @@ function update() {
                         game.flash = 0.9;
                         AudioEngine.sfxDie();
                         spawnParticles(p.angle, '#fff', 60, true);
-                        showKillfeedMessage(`${p.isBot ? 'Bot' : 'Player'} ${p.id + 1} was eliminated (Duck Limit Reached)`);
+                        showKillfeedMessage(`${p.name} was eliminated (Duck Limit Reached)`);
                         // If this elimination left one or zero survivors, end the game
                         const survivorsNow = game.players.filter(pl => pl.alive);
                         if (survivorsNow.length <= 1) {
@@ -700,6 +706,7 @@ function update() {
                 if (isPerfect) {
                     // PERFECT STREAK MULTIPLIER
                     game.ball.perfectStreak++;
+                    p.stats.perfects++; // <-- LEADERBOARD TRACKING: Count Perfects
                     const streakBonus = 50 * game.ball.perfectStreak;
                     p.points += streakBonus;
 
@@ -733,6 +740,7 @@ function update() {
                 // DEATH
                 p.alive = false;
                 p.points -= 50; // Death penalty
+                game.deadPlayers.push(p); // <-- LEADERBOARD TRACKING: Record death
                 game.shake = 25;
                 game.flash = 0.8;
                 AudioEngine.sfxDie();
@@ -745,20 +753,21 @@ function update() {
                 }
                 // --- KILLFEED GENERATOR ---
                 let deathReason = p.cooldown > 0 ? "swung at ghosts (Early)" : "did absolutely nothing";
-                let victimName = p.isBot ? `Bot ${p.id + 1}` : `Player ${p.id + 1}`;
-                let killerName = game.ball.lastHitBy ? (game.ball.lastHitBy.isBot ? `Bot ${game.ball.lastHitBy.id + 1}` : `Player ${game.ball.lastHitBy.id + 1}`) : "The Void";
+                let victimName = p.name;
+                let killerName = game.ball.lastHitBy ? game.ball.lastHitBy.name : "The Void";
 
                 let killMessage = "";
                 if (game.ball.lastHitBy === p) {
-                    killMessage = `🤡 ${victimName} eliminated themselves (Own Goal)!`;
+                    killMessage = `🤡 ${victimName} eliminated themselves!`;
                 } else if (game.ball.lastHitBy) {
                     killMessage = `⚔️ ${killerName} obliterated ${victimName} (${deathReason})`;
                     game.ball.lastHitBy.points += 100; // Award the Killer!
+                    game.ball.lastHitBy.stats.kills++; // <-- LEADERBOARD TRACKING: Award Kill
                 } else {
                     killMessage = `💨 ${victimName} died to the starting serve (${deathReason})`;
                 }
 
-                // Push to killfeed (life = 180 frames / 3 seconds)
+                // Push to HTML killfeed
                 showKillfeedMessage(killMessage);
             }
         }
@@ -971,13 +980,28 @@ function goToLobby() {
 
     game.phase = STATE.LOBBY;
     game.players = [];
+    game.deadPlayers = [];
     game.particles = [];
     game.shake = 0;
+
+    document.getElementById('name-setup-screen').classList.add('hidden'); // Hide setup screen
 
     const slice = (Math.PI * 2) / game.totalPlayers;
     for (let i = 0; i < game.totalPlayers; i++) {
         const isBot = i >= game.humanCount;
-        game.players.push(new Player(i, slice * i, isBot));
+
+        // Grab the name from the input field
+        const inputField = document.getElementById(`name-input-${i}`);
+        let assignedName = inputField ? inputField.value.trim() : "";
+
+        // If left empty, use the default from the arrays
+        if (!assignedName) {
+            assignedName = isBot ? BOT_NAMES[i % BOT_NAMES.length] : HUMAN_NAMES[i % HUMAN_NAMES.length];
+        }
+
+        const newPlayer = new Player(i, slice * i, isBot);
+        newPlayer.name = assignedName; // Attach name to the player object
+        game.players.push(newPlayer);
     }
 
     // Calculate the exact midpoint between two random players for a perfectly fair spawn
@@ -1009,9 +1033,7 @@ function endGame(winner) {
 
     const text = document.getElementById('winner-text');
     if (winner) {
-        text.innerHTML = winner.isBot
-            ? `<span style="color:#cbd5e1">BOT ${winner.id + 1} WINS</span>`
-            : `<span style="color:${winner.color}">PLAYER ${winner.id + 1} WINS</span>`;
+        text.innerHTML = `<span style="color:${winner.color}">${winner.name.toUpperCase()} WINS</span>`;
     } else {
         text.innerText = "DRAW";
         text.style.color = "#fff";
@@ -1029,6 +1051,7 @@ function showMenu() {
     ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     document.getElementById('pause-btn').classList.add('hidden');
     document.getElementById('pause-screen').classList.add('hidden'); // Just in case
+    document.getElementById('name-setup-screen').classList.add('hidden');
 }
 
 function togglePause() {
@@ -1069,6 +1092,31 @@ function showKillfeedMessage(text) {
         msg.style.opacity = '0';
         setTimeout(() => msg.remove(), 500);
     }, 3000);
+}
+
+function showNameSetup() {
+    // Hide menu, show name setup
+    uiMenu.classList.add('hidden');
+    document.getElementById('name-setup-screen').classList.remove('hidden');
+
+    const container = document.getElementById('name-inputs-container');
+    container.innerHTML = ''; // Clear old inputs
+
+    // Generate rows
+    for (let i = 0; i < game.totalPlayers; i++) {
+        const isBot = i >= game.humanCount;
+        const defaultName = isBot ? BOT_NAMES[i % BOT_NAMES.length] : HUMAN_NAMES[i % HUMAN_NAMES.length];
+        const label = isBot ? `BOT ${i + 1}` : `P${i + 1}`;
+        const color = COLORS[i];
+
+        container.innerHTML += `
+            <div class="name-row">
+                <div class="color-dot" style="background: ${color}; box-shadow: 0 0 8px ${color}"></div>
+                <div style="width: 50px; font-weight: bold; color: #cbd5e1; font-size: 0.9rem;">${label}</div>
+                <input type="text" id="name-input-${i}" class="name-input" placeholder="${defaultName}">
+            </div>
+        `;
+    }
 }
 
 updateUIDisplay();

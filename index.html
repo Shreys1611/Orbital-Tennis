@@ -51,7 +51,23 @@
                 Wait for Countdown.<br>
             </div>
 
-            <button class="btn-main" onclick="goToLobby()">ENTER LOBBY</button>
+            <button class="btn-main" onclick="showNameSetup()">ENTER LOBBY</button>
+        </div>
+
+        <!-- Name Setup -->
+        <div id="name-setup-screen" class="ui-layer hidden">
+            <h1 style="font-size: 2.5rem; margin-bottom: 10px;">SETUP NAMES</h1>
+
+            <div id="name-inputs-container"
+                style="max-height: 400px; overflow-y: auto; padding: 10px; margin-bottom: 20px;">
+            </div>
+
+            <div style="display: flex; gap: 15px;">
+                <button class="btn-main" style="background: #475569; padding: 10px 20px; font-size: 1rem;"
+                    onclick="showMenu()">BACK</button>
+                <button class="btn-main" style="padding: 10px 30px; font-size: 1.2rem;" onclick="goToLobby()">START
+                    GAME</button>
+            </div>
         </div>
 
         <!-- Game Over -->

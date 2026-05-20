@@ -207,4 +207,39 @@
      }
  }
 
+ .name-row {
+     display: flex;
+     align-items: center;
+     gap: 15px;
+     margin: 8px 0;
+     background: rgba(255, 255, 255, 0.05);
+     padding: 10px 15px;
+     border-radius: 8px;
+     width: 320px;
+ }
+
+ .color-dot {
+     width: 18px;
+     height: 18px;
+     border-radius: 50%;
+     border: 2px solid #fff;
+ }
+
+ .name-input {
+     background: #0f172a;
+     color: white;
+     border: 1px solid #334155;
+     padding: 8px 12px;
+     border-radius: 4px;
+     flex-grow: 1;
+     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+     font-weight: bold;
+     outline: none;
+     transition: border-color 0.2s;
+ }
+
+ .name-input:focus {
+     border-color: var(--accent);
+ }
+
  /* --- CSS END --- */
