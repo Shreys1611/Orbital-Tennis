@@ -365,34 +365,39 @@ class Player {
         }
 
         // --- NORMAL BOTS (Easy, Medium, Hard) ---
-        // They start deciding to swing/duck when the ball approaches the hitbox
-        if (framesToHitbox <= SWING_DURATION) {
-            const baseHit = this.profile.hitChance || 0.5;
 
-            // Proximity calculates how close they are to the perfect 7.5 frame lead
-            const swingCenter = SWING_DURATION / 2;
-            const proximity = Math.max(0, 1 - (Math.abs(framesToHitbox - swingCenter) / swingCenter));
+        if (this.cooldown === 0 && this.swingTimer === 0 && !this.isDucking) {
 
-            let finalHitProb = baseHit * (0.5 + 0.5 * proximity);
-            const speedFactor = Math.max(0.45, 1 - (Math.abs(ball.speed) / MAX_SPEED) * 0.6);
-            finalHitProb *= speedFactor;
-            finalHitProb = Math.min(Math.max(finalHitProb, 0), 0.99);
+            // 1. Pre-calculate their swing timing for this specific incoming ball.
+            // We only calculate this once per approach so they commit to a decision.
+            if (!this.targetFrame || framesToHitbox > SWING_DURATION + 10) {
+                // The perfect swing is exactly 7.5 frames before impact.
+                // We apply their errorRange to make them swing too early or too late!
+                let error = Math.random() * (this.profile.errorRange || 2.0);
+                let direction = Math.random() > 0.5 ? 1 : -1;
+                this.targetFrame = 7.5 + (error * direction);
 
-            let duckProb = this.profile.duckChance || 0.2;
-            if (Math.abs(ball.speed) > 0.14) duckProb = Math.min(0.99, duckProb + 0.05);
-
-            const total = finalHitProb + duckProb;
-            if (total <= 0) {
-                if (Math.random() < finalHitProb) {
-                    result.hit = true; this.actionColor = '#ffffff'; this.actionTimer = 5;
+                // Calculate if they will panic duck based on the ball's speed
+                this.currentDuckProb = this.profile.duckChance || 0.2;
+                if (Math.abs(ball.speed) > 0.15) {
+                    this.currentDuckProb = Math.min(0.9, this.currentDuckProb + 0.3);
                 }
-            } else {
-                const pick = Math.random() * total;
-                if (pick < duckProb) {
-                    result.duck = true; this.actionColor = '#facc15'; this.actionTimer = 5;
+            }
+
+            // 2. Wait for the ball to cross their calculated target frame!
+            if (framesToHitbox <= this.targetFrame) {
+                // They pull the trigger! Will they hit or duck?
+                if (Math.random() < this.currentDuckProb) {
+                    result.duck = true;
+                    this.actionColor = '#facc15';
                 } else {
-                    result.hit = true; this.actionColor = '#ffffff'; this.actionTimer = 5;
+                    result.hit = true;
+                    this.actionColor = '#ffffff';
                 }
+
+                // Clear the target frame for the next time the ball comes around
+                this.targetFrame = null;
+                return result;
             }
         }
 
