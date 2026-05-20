@@ -1066,6 +1066,16 @@ function endGame(winner) {
 
     setTimeout(() => {
         uiGameOver.classList.remove('hidden');
+
+        // Anime.js Elastic Pop for the Winner Text
+        anime({
+            targets: '#winner-text',
+            scale: [0.5, 1],
+            rotate: [-5, 0],
+            opacity: [0, 1],
+            easing: 'easeOutElastic(1, .4)', // High elasticity for a big bounce
+            duration: 1200
+        });
     }, 1000);
 }
 
@@ -1073,6 +1083,16 @@ function toggleStats() {
     const container = document.getElementById('leaderboard-container');
     if (container.style.display === 'none') {
         container.style.display = 'block';
+
+        // Anime.js Cascade effect for leaderboard rows
+        anime({
+            targets: '#leaderboard-body tr',
+            translateX: [30, 0],
+            opacity: [0, 1],
+            delay: anime.stagger(50), // Rapid fire 50ms stagger
+            easing: 'easeOutQuad',
+            duration: 400
+        });
     } else {
         container.style.display = 'none';
     }
@@ -1150,7 +1170,30 @@ function showNameSetup() {
             </div>
         `;
     }
+
+    // Anime.js Stagger effect for the input rows
+    anime({
+        targets: '.name-row',
+        translateX: [-50, 0],
+        opacity: [0, 1],
+        delay: anime.stagger(100), // 100ms delay between each row
+        easing: 'easeOutElastic(1, .8)', // Springy snap
+        duration: 800
+    });
 }
 
 updateUIDisplay();
+
+// --- ANIME.JS UI ANIMATIONS ---
+
+// 1. Idle Menu Pulse (Runs immediately on load)
+anime({
+    targets: '#menu-screen h1',
+    scale: [1, 1.05],
+    textShadow: ['0 0 20px #06b6d4', '0 0 40px #06b6d4', '0 0 20px #06b6d4'],
+    duration: 2000,
+    direction: 'alternate',
+    loop: true,
+    easing: 'easeInOutSine'
+});
 /* --- JS END --- */
