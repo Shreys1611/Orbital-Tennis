@@ -51,7 +51,7 @@ const AudioEngine = {
 
 // --- CONFIGURATION ---
 const CANVAS_SIZE = 700;
-const BASE_RADIUS = 250;
+let BASE_RADIUS = 250;
 const START_SPEED = 0.015;
 // Increased max speed so late-game becomes much faster if hits chain
 // Raised further per user request
@@ -828,10 +828,8 @@ function update() {
                     spawnParticles(p.angle, '#facc15', 30, true); // Golden sparks
 
                     // Spawn the Fire Emoji AND a floating score indicator!
-                    spawnParticles(p.angle, null, 0, false, "🔥");
-
-                    // Offset the text slightly so it doesn't overlap the emoji perfectly
-                    spawnParticles(p.angle - 0.15, null, 0, false, `+${targetPoints}`);
+                    spawnParticles(p.angle, '#facc15', 0, false, "🔥");
+                    spawnParticles(p.angle - 0.15, '#facc15', 0, false, `+${targetPoints}`);
                 } else {
                     // NORMAL HIT
                     game.ball.perfectStreak = 0; // reset perfect streak
@@ -1326,6 +1324,10 @@ function goToLobby() {
     game.shake = 0;
 
     document.getElementById('name-setup-screen').classList.add('hidden'); // Hide setup screen
+
+    // NEW: DYNAMIC RADIUS CALCULATION
+    // Scales from 150 (2 players) up to 270 (8 players)
+    BASE_RADIUS = 110 + (game.totalPlayers * 20);
 
     const slice = (Math.PI * 2) / game.totalPlayers;
     for (let i = 0; i < game.totalPlayers; i++) {
