@@ -55,9 +55,9 @@ const BASE_RADIUS = 250;
 const START_SPEED = 0.015;
 // Increased max speed so late-game becomes much faster if hits chain
 // Raised further per user request
-const MAX_SPEED = 0.17;
+const MAX_SPEED = 0.1;
 // Reduce speed increment per hit so games last longer; adjust to taste (1.0 = no change)
-const SPEED_INC = 1.04;
+const SPEED_INC = 1.015;
 // Periodic speed boost: every SPEED_BOOST_INTERVAL_MS multiply ball speed by SPEED_BOOST_MULT
 const SPEED_BOOST_INTERVAL_MS = 20000; // 20 seconds
 const SPEED_BOOST_MULT = 1.1; // small incremental boost
@@ -703,21 +703,34 @@ function update() {
                         AudioEngine.playTone(400, 'square', 0.1, 0.2); // Anomaly Sound
                         spawnParticles(game.ball.angle, '#ef4444', 20, true); // Red explosion
                         game.shake = 5; // Slight screen shake
-                    } else if (z.type === 'portal') {
-                        // Find the destination portal
-                        let destPortal = game.zones[z.targetIndex];
-                        let destCenter = (destPortal.start + destPortal.end) / 2;
+                    } else if (z.type === 'portalIn') {
+                        // Only the Orange portal triggers the teleport!
+                        if (game.ball.portalsActive) {
+                            let destPortal = game.zones[z.targetIndex];
+                            let destCenter = (destPortal.start + destPortal.end) / 2;
 
-                        // Teleport the ball to the exact center of the exit portal
-                        game.ball.angle = destCenter;
+                            game.ball.angle = destCenter;
+                            game.ball.activeZone = z.targetIndex;
+                            game.ball.portalsActive = false;
 
-                        // CRITICAL: Lock the ball into the destination portal so it doesn't instantly teleport back!
-                        game.ball.activeZone = z.targetIndex;
+                            AudioEngine.playTone(800, 'sine', 0.1, 0.2);
+                            spawnParticles(game.ball.angle, destPortal.color, 25, true);
+                            game.shake = 8;
+                        }
+                    } else if (z.type === 'fast') {
+                        // Multiply speed by 1.5x (cap at MAX_SPEED)
+                        game.ball.speed = Math.sign(game.ball.speed) * Math.min(Math.abs(game.ball.speed) * 1.5, MAX_SPEED);
 
-                        // Sci-fi teleport effects
-                        AudioEngine.playTone(800, 'sine', 0.1, 0.2);
-                        spawnParticles(game.ball.angle, destPortal.color, 25, true);
-                        game.shake = 8;
+                        AudioEngine.playTone(600, 'square', 0.1, 0.1); // High pitch zip
+                        spawnParticles(game.ball.angle, '#22c55e', 30, true);
+                        game.flash = 0.2;
+                    } else if (z.type === 'slow') {
+                        // Cut speed by 40%, but never drop below the starting serve speed
+                        const minSpeed = 0.015; // Roughly the START_SPEED
+                        game.ball.speed = Math.sign(game.ball.speed) * Math.max(Math.abs(game.ball.speed) * 0.6, minSpeed);
+
+                        AudioEngine.playTone(200, 'sine', 0.1, 0.3); // Low pitch heavy thud
+                        spawnParticles(game.ball.angle, '#a855f7', 20, false); // Gentle particle poof
                     }
                 }
             }
@@ -777,6 +790,7 @@ function update() {
                     p.points += 25; // Base hit reward
                     p.hitThisApproach = true;
                 }
+                game.ball.portalsActive = true;
                 // Check if the hit was perfectly timed in the center of the swing (swingTimer is between 6 and 9)
                 const isPerfect = Math.abs(p.swingTimer - (SWING_DURATION / 2)) <= 1.5;
 
@@ -790,7 +804,7 @@ function update() {
                     p.points += streakBonus;
 
                     // PERFECT SMASH: Reverse direction and apply a massive speed multiplier
-                    game.ball.speed = -Math.sign(game.ball.speed) * Math.min(Math.abs(game.ball.speed) * 1.4, MAX_SPEED * 1.2);
+                    game.ball.speed = -Math.sign(game.ball.speed) * Math.min(Math.abs(game.ball.speed) * 1.15, MAX_SPEED * 1.2);
                     game.ball.color = '#facc15'; // Turn ball blazing Gold
                     game.shake = 20;
                     game.flash = 0.6;
@@ -892,37 +906,107 @@ function draw() {
     ctx.beginPath(); ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke();
 
-    // Draw Zones with Animations
+    // Draw Zones with Custom Animations
     if (game.zones && game.zones.length > 0) {
-        const time = Date.now(); // Used to drive the animations
+        const time = Date.now();
 
         game.zones.forEach((z, index) => {
             ctx.save();
+
+            // 1. Draw the translucent base track (Very low opacity so ball is visible!)
             ctx.beginPath();
             ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, z.start, z.end);
 
-            // 1. Draw the base translucent track
-            ctx.strokeStyle = z.color;
-            ctx.lineWidth = 12;
+            // Dim portals if inactive
+            if ((z.type === 'portalIn' || z.type === 'portalOut') && !game.ball.portalsActive) {
+                ctx.strokeStyle = 'rgba(71, 85, 105, 0.2)';
+            } else {
+                ctx.strokeStyle = z.color;
+                ctx.globalAlpha = 0.25;
+            }
+
+            ctx.lineWidth = 14;
             ctx.lineCap = 'round';
             ctx.stroke();
 
-            // 2. Draw the Animated Energy Overlays
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineCap = 'butt'; // Crisp edges for dashes
+            // 2. Custom Animations (No dashed lines!)
+            ctx.globalAlpha = 1.0;
+            let span = z.end - z.start;
 
             if (z.type === 'flip') {
-                // Glitchy pulsing effect (opacity goes up and down)
-                ctx.globalAlpha = 0.4 + Math.abs(Math.sin(time / 150)) * 0.6;
-                ctx.setLineDash([Math.random() * 20, Math.random() * 20]);
+                // A thin, violently pulsing red line in the center
+                ctx.beginPath();
+                ctx.arc(CANVAS_SIZE / 2, CANVAS_SIZE / 2, BASE_RADIUS, z.start, z.end);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1 + Math.abs(Math.sin(time / 100)) * 3; // Pulses thickness
                 ctx.stroke();
-            } else if (z.type === 'portal') {
-                // Flowing energy indicating teleportation capability
-                ctx.globalAlpha = 0.9;
-                ctx.setLineDash([12, 12]);
-                ctx.lineDashOffset = -(time / 20); // Creates a continuous forward flow
-                ctx.stroke();
+            }
+            else if (z.type === 'portalIn' || z.type === 'portalOut') {
+                // Draw 3 animated nodes
+                let numIcons = 3;
+                for (let i = 1; i <= numIcons; i++) {
+                    let angle = z.start + span * (i / (numIcons + 1));
+                    let tx = CANVAS_SIZE / 2 + Math.cos(angle) * BASE_RADIUS;
+                    let ty = CANVAS_SIZE / 2 + Math.sin(angle) * BASE_RADIUS;
+
+                    ctx.save();
+                    ctx.translate(tx, ty);
+
+                    // Create looping Shrink/Grow animations based on the type
+                    let scale = 1.0;
+                    if (game.ball.portalsActive) {
+                        let cycle = (time / 300 + i / numIcons) % 1.0;
+                        if (z.type === 'portalIn') {
+                            scale = 1.0 - cycle; // Sucks inward (shrinks to 0)
+                        } else {
+                            scale = cycle; // Spits outward (grows from 0)
+                        }
+                    } else {
+                        scale = 0.5; // Static size when on cooldown
+                    }
+
+                    ctx.scale(scale, scale);
+
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+
+                    // Color the dots Orange/Blue instead of White to reinforce identity
+                    ctx.fillStyle = game.ball.portalsActive ? z.color : '#475569';
+                    ctx.shadowColor = game.ball.portalsActive ? z.color : 'transparent';
+                    ctx.shadowBlur = 10;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+            else if (z.type === 'fast' || z.type === 'slow') {
+                // Draw 3 animated icons inside the zone
+                let numIcons = 3;
+                for (let i = 1; i <= numIcons; i++) {
+                    let angle = z.start + span * (i / (numIcons + 1));
+                    let tx = CANVAS_SIZE / 2 + Math.cos(angle) * BASE_RADIUS;
+                    let ty = CANVAS_SIZE / 2 + Math.sin(angle) * BASE_RADIUS;
+
+                    ctx.save();
+                    ctx.translate(tx, ty);
+                    ctx.rotate(angle + Math.PI / 2); // Align with the track
+
+                    let bounce = Math.sin(time / 150 + i) * 3; // Bobbing up and down animation
+                    ctx.translate(0, bounce);
+
+                    ctx.beginPath();
+                    ctx.lineWidth = 2;
+                    if (z.type === 'fast') {
+                        // Forward-facing arrows (Chevrons)
+                        ctx.strokeStyle = '#4ade80';
+                        ctx.moveTo(-4, 0); ctx.lineTo(0, -5); ctx.lineTo(4, 0);
+                        ctx.stroke();
+                    } else {
+                        // Heavy blocks (Brakes) for slow zones
+                        ctx.fillStyle = '#a855f7';
+                        ctx.fillRect(-3, -3, 6, 6);
+                    }
+                    ctx.restore();
+                }
             }
 
             ctx.restore();
@@ -1081,51 +1165,55 @@ function reshuffleZones() {
     const slice = (Math.PI * 2) / game.totalPlayers;
     let availableGaps = [];
 
-    // Find all gaps that are safely away from the ball
     for (let i = 0; i < game.totalPlayers; i++) {
         let gapCenter = (slice * i) + (slice / 2);
-        // Calculate distance from ball to this gap
         let diff = (game.ball.angle - gapCenter + Math.PI * 3) % (Math.PI * 2) - Math.PI;
-
-        if (Math.abs(diff) > 1.2) { // 1.2 radians is a huge safe buffer
-            availableGaps.push(i);
-        }
+        if (Math.abs(diff) > 1.2) availableGaps.push(i);
     }
 
-    // Failsafe: If the ball is moving insanely fast and all gaps are "unsafe", just use all gaps
     if (availableGaps.length === 0) {
         for (let i = 0; i < game.totalPlayers; i++) availableGaps.push(i);
     }
-
-    // Shuffle the available gaps randomly
     availableGaps.sort(() => Math.random() - 0.5);
 
+    // FIX: Hard-cap the width to 0.5 radians maximum so they are always small!
+    let w = Math.min(0.5, slice - 0.3);
+
     if (game.mode === 'flip') {
-        // Spawn 1 or 2 flip zones dynamically
         let numZones = Math.min(availableGaps.length, Math.random() > 0.5 ? 2 : 1);
         for (let i = 0; i < numZones; i++) {
             let gapIndex = availableGaps[i];
             let center = (slice * gapIndex) + (slice / 2);
-            let w = Math.max(0.2, slice - 0.5);
-            game.zones.push({
-                type: 'flip',
-                start: center - (w / 2), end: center + (w / 2),
-                color: 'rgba(239, 68, 68, 0.5)'
-            });
+            game.zones.push({ type: 'flip', start: center - (w / 2), end: center + (w / 2), color: 'rgba(239, 68, 68, 1.0)' });
         }
     } else if (game.mode === 'portal' && availableGaps.length >= 2) {
-        // Spawn Orange and Blue Portals
-        let gap1 = availableGaps[0];
-        let gap2 = availableGaps[1];
-        let center1 = (slice * gap1) + (slice / 2);
-        let center2 = (slice * gap2) + (slice / 2);
-        let w = Math.max(0.2, slice - 0.5);
+        let center1 = (slice * availableGaps[0]) + (slice / 2);
+        let center2 = (slice * availableGaps[1]) + (slice / 2);
 
-        game.zones.push({ type: 'portal', targetIndex: 1, start: center1 - (w / 2), end: center1 + (w / 2), color: 'rgba(249, 115, 22, 0.6)' }); // Orange
-        game.zones.push({ type: 'portal', targetIndex: 0, start: center2 - (w / 2), end: center2 + (w / 2), color: 'rgba(56, 189, 248, 0.6)' }); // Blue
+        // Orange is STRICTLY the ENTRANCE (portalIn)
+        game.zones.push({ type: 'portalIn', targetIndex: 1, start: center1 - (w / 2), end: center1 + (w / 2), color: 'rgba(249, 115, 22, 1.0)' });
+
+        // Blue is STRICTLY the EXIT (portalOut). It has no target because it doesn't teleport anything.
+        game.zones.push({ type: 'portalOut', targetIndex: null, start: center2 - (w / 2), end: center2 + (w / 2), color: 'rgba(56, 189, 248, 1.0)' });
+    } else if (game.mode === 'speed') {
+        // Spawn 1 or 2 zones randomly
+        let numZones = Math.min(availableGaps.length, Math.random() > 0.5 ? 2 : 1);
+        for (let i = 0; i < numZones; i++) {
+            let gapIndex = availableGaps[i];
+            let center = (slice * gapIndex) + (slice / 2);
+
+            // Randomly decide if this specific zone is Fast or Slow
+            let isFast = Math.random() > 0.5;
+
+            game.zones.push({
+                type: isFast ? 'fast' : 'slow',
+                start: center - (w / 2),
+                end: center + (w / 2),
+                color: isFast ? 'rgba(34, 197, 94, 1.0)' : 'rgba(168, 85, 247, 1.0)'
+            });
+        }
     }
-
-    // Flash the screen slightly to indicate map change
+    if (game.ball) game.ball.portalsActive = true;
     game.flash = 0.15;
 }
 
